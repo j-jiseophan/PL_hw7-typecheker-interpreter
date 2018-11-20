@@ -23,8 +23,8 @@ object Main extends Homework07 {
             copy(tbinds = tbinds + (x -> cs))
     }
 
-
-    def run(str: String): String={
+    val new_tenv = new TypeEnv
+    def typeCheck(expr: COREL, tenv: TypeEnv = new_tenv): Type = {
         def mustSame(left: Type, right: Type): Type =
             if (same(left, right)) left
             else error(s"$left is not equal to $right")
@@ -51,12 +51,21 @@ object Main extends Homework07 {
                 case true => tenv
             }
         }
-        /*
-        def repeated_caseCheck(tenv: TypeEnv, cases: Map[String, (String, COREL)], lst: List[Type]): List[Type]={
+        def repeated_validType(cons: Map[String, Type], tenv: TypeEnv): Type={
+            cons.size match{
+                case 1 =>
+                    validType(cons.last._2, tenv)
+                case _ =>
+                    validType(cons.last._2, tenv)
+                    repeated_validType(cons-cons.last._1, tenv)
+            }
+
+        }
+        def repeated_caseCheck(tenv: TypeEnv, cases: Map[String, (String, COREL)], lst: List[Type], cs: Map[String, Type]): List[Type]={
             cases.isEmpty match{
                 case false =>
-                    repeated_caseCheck(tenv, cases-cases.last._1, lst + typeCheck(cases.last._2._2,
-                        tyEnv.addVar(cases.last._2._1, cs.getOrElse(cases.last._1._1,error(s"$cases.last._1._1 is free")))))
+                    repeated_caseCheck(tenv, cases-cases.last._1, lst ++ List(typeCheck(cases.last._2._2,
+                        tenv.addVar(cases.last._2._1, cs.apply(cases.last._1)))), cs)
                 case true => lst
             }
         }
@@ -68,7 +77,67 @@ object Main extends Homework07 {
                     repeated_mustSame(lst.drop(1))
             }
         }
-*/
+        expr match{
+            case Num(n) => NumT
+            case Bool(b) => BoolT
+            case Add(l, r) => 
+                mustSame(typeCheck(l, tenv), NumT)
+                mustSame(typeCheck(r, tenv), NumT)
+                NumT
+            case Sub(l, r) =>
+                mustSame(typeCheck(l, tenv), NumT)
+                mustSame(typeCheck(r, tenv), NumT)
+                NumT
+            case Equ(l, r) =>
+                mustSame(typeCheck(l, tenv), NumT)
+                mustSame(typeCheck(r, tenv), NumT)
+                BoolT
+            case Id(x) =>
+                tenv.vars.apply(x)
+                //tenv.getOrElse(x,error(s"$x is a free identifier")) TODO:error messaging
+            case Fun(p, pt, b) =>
+                validType(pt, tenv)
+                ArrowT(pt, typeCheck(b, tenv.addVar(p, pt)))
+            case App(f, a) =>
+                val typef = typeCheck(f, tenv)
+                val typea = typeCheck(a, tenv)
+                typef match {
+                    case ArrowT(t1, t2)=>
+                        mustSame(t1, typea)
+                    case _ => error(s"apply $typea to $typef")
+                }
+            case IfThenElse(c, t, f) =>
+                mustSame(typeCheck(c, tenv), BoolT)
+                val type1=typeCheck(t, tenv)
+                val type2=typeCheck(f, tenv)
+                mustSame(type1, type2)
+            case Rec(f, ft, x, xt, b) =>
+                mustSame(ft, ArrowT(xt, typeCheck(b, tenv.addVar(f, ft).addVar(x, xt))))
+            case WithType(name, cons, b) =>
+                val tyEnvT = tenv.addTBind(name, cons)
+                val tyEnvV = repeated_addVar(tyEnvT, cons, name)
+                repeated_validType(cons, tyEnvT)
+                typeCheck(b, tyEnvV)
+            case Cases(name, c, cases)=>
+                val cs =  tenv.tbinds.apply(name)
+                mustSame(typeCheck(c, tenv), IdT(name))
+                val lst = repeated_caseCheck(tenv, cases, List[Type](), cs)// list of types
+                if(lst.length>1) repeated_mustSame(lst)
+                else lst(0)
+            case TFun(p, e) =>
+                PolyT(p, typeCheck(e, tenv))
+            case TApp(b, t) => typeCheck(b, tenv) match {
+                case PolyT(p, pb) => 
+                    ArrowT(t, pb)
+                case _ => error(s"TAPP temporary error message")
+            }
+
+
+
+        }
+    }
+
+    def run(str: String): String={
         def NumAdd(l: CORELValue, r: CORELValue): CORELValue={
             l match{
                 case NumV(ln) => r match{
@@ -105,67 +174,8 @@ object Main extends Homework07 {
             if(cases.isEmpty) error(s"$name is a free constructor")
             if(name == cases.last._1) cases.last._2
             else checkname(name, cases-cases.last._1)
-        }/*
-        def typeCheck(expr: COREL, tenv: TypeEnv): Type = {
-            expr match{
-                case Num(n) => NumT
-                case Bool(b) => BoolT
-                case Add(l, r) => 
-                    mustSame(typeCheck(l, tenv), NumT)
-                    mustSame(typeCheck(r, tenv), NumT)
-                    NumT
-                case Sub(l, r) =>
-                    mustSame(typeCheck(l, tenv), NumT)
-                    mustSame(typeCheck(r, tenv), NumT)
-                    NumT
-                case Equ(l, r) =>
-                    mustSame(typeCheck(l, tenv), NumT)
-                    mustSame(typeCheck(r, tenv), NumT)
-                    BoolT
-                case Id(x) =>
-                    tyEnv.getOrElse(x,error(s"$x is a free identifier"))
-                case Fun(p, pt, b) =>
-                    validType(pt, tyEnv)
-                    ArrowT(pt, typeCheck(b, teEnv + (p -> pt)))
-                case App(f, a) =>
-                    val typef = typeCheck(f, tenv)
-                    val typea = typeCheck(a, tenv)
-                    typef match {
-                        case ArrowT(t1, t2)=>
-                            mustSame(t1, typea)
-                        case _ => error(s"apply $typea to $typef")
-                    }
-                case IfThenElse(c, t, f) =>
-                    mustSame(c, boolT)
-                    type1=typeCheck(t, tenv)
-                    type2=typeCheck(f, tenv)
-                    mustSame(type1, type2)
-                case Rec(f, ft, x, xt, b) =>
-                    mustSame(ft, ArrowT(xt,typeCheck(b, tyEnv + (f -> ft, x -> xt))))
-                case WithType(name, cons, b) =>
-                    val tyEnvT = tenv.addTBind(tn, cons)
-                    val tyEnvV = repeated_addVar(tyEnvT, cons, name)
-                    validType(vft, tyEnvT)
-                    validType(vst, tyEnvT)
-                    typeCheck(b, tyEnvV)
-                case Cases(name, c, cases)=>
-                    val cs = tenv.tbinds.getOrElse(name, error(s"$tn is a free type"))
-                    mustSame(typeCheck(c, tyEnv), IdT(name))
-                    val lst = repeated_caseCheck(tenv, cases, List[Type]())
-                    if(lst.length>1) repeated_mustSame(lst)
-                    else lst(0)
-                case TFun(p, e) =>
-                    PolyT(p, typeCheck(e, tenv))
-                case TApp(b, t) => typeCheck(b) match {
-                    case PolyT(p, pb) => 
-                        ArrowT(typeCheck(t, fenv), typecheck(pb, fenv+(p+typecheck(t, fenv))))
-                    case _ => error(s"TAPP temporary error message")
-                }
-
-
-
-            }
-        }*/
+        }
+        
         def interp(w : COREL, env : Env): CORELValue={
             w match{
                 case Num(n) => NumV(n)
@@ -223,7 +233,7 @@ object Main extends Homework07 {
         stringConversion(result)
 
     }
-    def ownTests: Unit = {/*
+    def ownTests: Unit = {
         test(typeCheck("{tyfun {a} 3}"), Type("{^ a num}"))
         test(typeCheck("{tyfun {a} {tyfun {b} 3}}"), Type("{^ a {^ b num}}"))
         test(typeCheck("{tyfun {a} {fun {x: a} x}}"), Type("{^ a {a -> a}}"))
@@ -237,7 +247,7 @@ object Main extends Homework07 {
         test(typeCheck("{tyfun {a} 3}"), Type("{^ a num}"))
         test(typeCheck("{tyfun {a} {tyfun {b} 3}}"), Type("{^ a {^ b num}}"))
         test(typeCheck("{tyfun {a} {fun {x: a} x}}"), Type("{^ a {a -> a}}"))
-        test(typeCheck("{@ {tyfun {a} {fun {x: a} x}} {^ b {b -> b}}}"), Type("{{^ b {b -> b}} -> {^ b {b -> b}}}"))//good example
+        test(typeCheck("{@ {tyfun {a} {fun {x: a} x}} {^ b {b -> b}}}"), Type("{{^ b {b -> b}} -> {^ b {b -> b}}}"))
         test(typeCheck("{tyfun {a} {tyfun {b} 3}}"), Type("{^ a {^ b num}}"))
         test(typeCheck("{tyfun {a} {fun {x: a} x}}"), Type("{^ a {a -> a}}"))
         test(typeCheck("{tyfun {a} {tyfun {b} {fun {x: a} x}}}"), Type("{^ a {^ b {a -> a}}}"))
@@ -263,27 +273,7 @@ object Main extends Homework07 {
         test(typeCheck("{fun {x: {^ a a}} x}"), Type("{{^ a a} -> {^ a a}}"))
         test(typeCheck("{@ {tyfun {a} {tyfun {b} {fun {x: {^ a {^ b a}}} x}}} num}"), Type("{^ b {{^ a {^ b a}} -> {^ a {^ b a}}}}"))
         test(typeCheck("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), Type("num"))
-*/
-        test(run("{{{@ {tyfun {a} {fun {f: a} f}} {num -> num}} {fun {x: num} x}} 10}"), "10")
-        test(run("{@ {tyfun {a} {fun {f: a} f}} {num -> num}}"), "function")
-        test(run("{@ {@ {tyfun {a} {tyfun {b} 3}} num} num}"), "3")
-        test(run("{tyfun {a} {fun {x: b} x}}"), "function")
-        test(run("{{fun {x: num} {{fun {f: {num -> num}} {+ {f 1} {{fun {x: num} {f 2}} 3}}} {fun {y: num} {+ x y}}}} 0}"), "3")
-        test(run("{@ {tyfun {a} {fun {x: a} x}} num}"), "function")
-        test(run("{tyfun {a} {tyfun {b} 3}}"), "3")
-        test(run("{{{@ {tyfun {a} {fun {f: a} f}} {num  -> num}} {fun {x: num} x}} 10}"), "10")
-        test(run("{@ {tyfun {a} {fun {f: a} f}} {num -> num}}"), "function")
-        test(run("{@ {@ {tyfun {a} {tyfun {b} 3}} num} num}"), "3")
-        test(run("{@ {tyfun {a} {fun {f: a} f}} {num -> num}}"), "function")
-        test(run("{{@ {if true {tyfun {a} {fun {x: a} x}} {tyfun {b} {fun {x: b} b}}} x} 30}"), "30")
-        test(run("{{fun {x: {^ a {a -> a}}} {{@ x num} 10}} {tyfun {b} {fun {y: b} y}}}"), "10")
-        test(run("{@ {tyfun {a} {fun {x: a} 5}} num}"), "function")
-        test(run("{@ {tyfun {a} {fun {x: {^ a {a -> a}}} x}} num}"), "function")
-        test(run("{{{@ {@ {tyfun {a} {tyfun {b} {fun {x: {a -> b}} x}}} num} num} {fun {x: num} {+ 5 x}}} 3}"), "8")
-        test(run("{{{@ {@ {tyfun {a} {tyfun {a} {fun {x: {a -> a}} x}}} num} num} {fun {x: num} {+ 5 x}}} 3}"), "8")
-        test(run("{@ {@ {tyfun {a} {tyfun {b} 3}} num} num}"), "3")
-        test(run("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), "10")
-        test(run("{{recfun {f: {num -> num} x: num} {if {= x 0} 0 {+ {f {- x 1}} x}}} 10}"), "55")
+        test(typeCheck("{withtype {foo {a num} {b num}} {cases foo {a 3} {a {n} {+ n 3}} {b {n} {+ n 4}}}}"), Type("num"))
 
     }
 
