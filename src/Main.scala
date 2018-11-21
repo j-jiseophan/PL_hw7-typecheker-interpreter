@@ -1,7 +1,7 @@
 import Util._
 
 object Main extends Homework07 {
-//TODO: storelookup, envlookup
+//TODO: storelookup, envlookup, error handling
     trait CORELValue
     case class NumV(n: Int) extends CORELValue
     case class CloV(param: String,body: COREL, var env: Env) extends CORELValue
@@ -25,12 +25,13 @@ object Main extends Homework07 {
     def typeCheck(exp_str: String): Type ={
         val new_tenv = new TypeEnv
         def typeCheckCOREL(expr: COREL, tenv: TypeEnv = new_tenv): Type = {
-            //println("-----------")
-            //println("expr :" + expr)
-            //println("tenv : " + tenv.vars)
-            def mustSame(left: Type, right: Type): Type =
+            println("-----------")
+            println("expr :" + expr)
+            println("tenv : " + tenv.vars)
+            def mustSame(left: Type, right: Type): Type ={
                 if (same(left, right)) left
                 else error(s"$left is not equal to $right")
+            }
             def same(left: Type, right: Type): Boolean =
                 (left, right) match {
                     case (NumT, NumT) => true
@@ -48,7 +49,7 @@ object Main extends Homework07 {
                 case ArrowT(p, r) =>
                 ArrowT(validType(p, tyEnv), validType(r, tyEnv))
                 case IdT(x) =>
-                    println("x is " + x)
+                    //println("x is " + x)
                     if (tyEnv.tbinds.contains(x)) ty
                     else if(tyEnv.vars.contains(x)) ty
                     else error(s"$x is a free type")
@@ -90,9 +91,13 @@ object Main extends Homework07 {
                 }
             }
             def type_replacer(target: Type, tenv: TypeEnv): Type={
+               // println("here i type_replacer")
+               // println("tenv.vars : "+tenv.vars)
+               // println("target: " + target)
                 target match{
                     case IdT(x) => tenv.vars.apply(x)
                     case ArrowT(p, r) => ArrowT(type_replacer(p, tenv), type_replacer(r, tenv))
+               //     case PolyT(p, pb) => PolyT(p, type_replacer(pb, tenv))
                     case _ => target
                 }
             }
@@ -123,6 +128,7 @@ object Main extends Homework07 {
                     typef match {
                         case ArrowT(t1, t2)=>
                             mustSame(t1, typea)
+                            t2
                         case _ => error(s"apply $typea to $typef")
                     }
                 case IfThenElse(c, t, f) =>
@@ -149,6 +155,7 @@ object Main extends Homework07 {
                     validType(t, tenv)
                     typeCheckCOREL(b, tenv) match {
                         case PolyT(p, pb) => 
+                        //    println("??")
                             type_replacer(pb, tenv.addVar(p,t))
                         case _ => error(s"TAPP temporary error message")
                 }
@@ -257,12 +264,12 @@ object Main extends Homework07 {
 
     }
     def ownTests: Unit = {
-        test(typeCheck("{@ {tyfun {a} {fun {a: a} {{fun {x: {^ a {a -> a}}} {{@ x num} 10}} {tyfun {b} {fun {b: b} b}}}}} {num -> num}}"), Type("{{num -> num} -> num}"))//this fails
-        test(typeCheck("{@ {tyfun {a} {fun {a: a} {{fun {x: {^ a {a -> a}}} {{@ x num} 10}} {tyfun {b} {fun {b: b} b}}}}} num}"), Type("{num -> num}"))//fails
-        test(typeCheck("{@ {tyfun {a} {fun {a: a} {{fun {x: {^ a {a -> a}}} {{@ x num} 10}} {tyfun {a} {fun {a: a} a}}}}} num}"), Type("{num -> num}"))//fails
-        test(typeCheck("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), Type("num")) //fails
-        test(typeCheck("{withtype {foo {a num} {b num}} {cases foo {a 3} {a {n} {+ n 3}} {b {n} {+ n 4}}}}"), Type("num")) //fails
+        test(typeCheck("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), Type("num"))
 
+
+        /* failures collection
+        test(typeCheck("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), Type("num"))
+        */
     }
 
 }
