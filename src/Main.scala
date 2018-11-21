@@ -2,6 +2,7 @@ import Util._
 
 object Main extends Homework07 {
 //TODO: storelookup, envlookup, error handling
+// 바깥쪽 tapp 을 a에 num하는 과정이 안되네
     trait CORELValue
     case class NumV(n: Int) extends CORELValue
     case class CloV(param: String,body: COREL, var env: Env) extends CORELValue
@@ -25,9 +26,9 @@ object Main extends Homework07 {
     def typeCheck(exp_str: String): Type ={
         val new_tenv = new TypeEnv
         def typeCheckCOREL(expr: COREL, tenv: TypeEnv = new_tenv): Type = {
-            println("-----------")
-            println("expr :" + expr)
-            println("tenv : " + tenv.vars)
+            //println("-----------")
+            //println("expr :" + expr)
+            //println("tenv : " + tenv.vars)
             def mustSame(left: Type, right: Type): Type ={
                 if (same(left, right)) left
                 else error(s"$left is not equal to $right")
@@ -91,13 +92,13 @@ object Main extends Homework07 {
                 }
             }
             def type_replacer(target: Type, tenv: TypeEnv): Type={
-               // println("here i type_replacer")
-               // println("tenv.vars : "+tenv.vars)
-               // println("target: " + target)
+             //  println("@here is type_replacer@")
+              //  println("tenv.vars : "+tenv.vars)
+              //  println("target: " + target)
                 target match{
                     case IdT(x) => tenv.vars.apply(x)
                     case ArrowT(p, r) => ArrowT(type_replacer(p, tenv), type_replacer(r, tenv))
-               //     case PolyT(p, pb) => PolyT(p, type_replacer(pb, tenv))
+                    case PolyT(p, pb) => PolyT(p, type_replacer(pb, tenv))//?
                     case _ => target
                 }
             }
@@ -117,11 +118,15 @@ object Main extends Homework07 {
                     mustSame(typeCheckCOREL(r, tenv), NumT)
                     BoolT
                 case Id(x) =>
-                    tenv.vars.apply(x)
+                    val a = tenv.vars.apply(x)
+              //      println("here : ID(x) fin")
+                    a
                     //tenv.getOrElse(x,error(s"$x is a free identifier")) TODO:error messaging
                 case Fun(p, pt, b) =>
                     validType(pt, tenv)
-                    ArrowT(pt, typeCheckCOREL(b, tenv.addVar(p, pt)))
+                    val a = ArrowT(pt, typeCheckCOREL(b, tenv.addVar(p, pt)))
+                //    println("here Fun(p, pt, b) fin")
+                    a
                 case App(f, a) =>
                     val typef = typeCheckCOREL(f, tenv)
                     val typea = typeCheckCOREL(a, tenv)
@@ -150,13 +155,18 @@ object Main extends Homework07 {
                     if(lst.length>1) repeated_mustSame(lst)
                     else lst(0)
                 case TFun(p, e) =>
-                    PolyT(p, typeCheckCOREL(e, tenv.addVar(p, IdT(p))))
+                    val a= PolyT(p, typeCheckCOREL(e, tenv.addVar(p, IdT(p))))
+         //           println("here TFun finished ")
+                    a
                 case TApp(b, t) => 
                     validType(t, tenv)
-                    typeCheckCOREL(b, tenv) match {
+                    val c= typeCheckCOREL(b, tenv)
+           //         println("here Tapp input : " + c)
+                    c match {
                         case PolyT(p, pb) => 
-                        //    println("??")
-                            type_replacer(pb, tenv.addVar(p,t))
+                            val a= type_replacer(pb, tenv.addVar(p,t))
+             //               println("here Tapp returns : " + a)
+                            a
                         case _ => error(s"TAPP temporary error message")
                 }
 
@@ -264,9 +274,68 @@ object Main extends Homework07 {
 
     }
     def ownTests: Unit = {
-        test(typeCheck("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), Type("num"))
+         test(typeCheck("{tyfun {a} 3}"), Type("{^ a num}"))
+  test(typeCheck("{tyfun {a} {tyfun {b} 3}}"), Type("{^ a {^ b num}}"))
+  test(typeCheck("{tyfun {a} {fun {x: a} x}}"), Type("{^ a {a -> a}}"))
+  test(typeCheck("{tyfun {a} {tyfun {b} {fun {x: {^ a {^ b a}}} x}}}"), Type("{^ a {^ b {{^ a {^ b a}} -> {^ a {^ b a}}}}}"))
+  test(typeCheck("{@ {tyfun {a} {tyfun {b} {fun {x: {^ a {^ b a}}} x}}} num}"), Type("{^ b {{^ a {^ b a}} -> {^ a {^ b a}}}}"))
+  test(typeCheck("{fun {x: {^ a a}} x}"), Type("{{^ a a} -> {^ a a}}"))
+  testExc(typeCheck("{fun {x: {^ a {a -> b}}} x}"), "free")
+  testExc(typeCheck("{tyfun {a} {fun {x: b} x}}"), "free")
+  testExc(typeCheck("{@ {tyfun {a} {fun {x: b} x}} num}"), "free")
+  testExc(typeCheck("{tyfun {a} {fun {x: a} {tyfun {b} {fun {y: b} {+ x y}}}}}"), "no")
+  test(typeCheck("{tyfun {a} 3}"), Type("{^ a num}"))
+  test(typeCheck("{tyfun {a} {tyfun {b} 3}}"), Type("{^ a {^ b num}}"))
+  test(typeCheck("{tyfun {a} {fun {x: a} x}}"), Type("{^ a {a -> a}}"))
+  test(typeCheck("{@ {tyfun {a} {fun {x: a} x}} {^ b {b -> b}}}"), Type("{{^ b {b -> b}} -> {^ b {b -> b}}}"))
+  test(typeCheck("{tyfun {a} {tyfun {b} 3}}"), Type("{^ a {^ b num}}"))
+  test(typeCheck("{tyfun {a} {fun {x: a} x}}"), Type("{^ a {a -> a}}"))
+  test(typeCheck("{tyfun {a} {tyfun {b} {fun {x: a} x}}}"), Type("{^ a {^ b {a -> a}}}"))
+  test(typeCheck("{if true {tyfun {a} {fun {x: a} x}} {tyfun {b} {fun {y: b} y}}}"), Type("{^ a {a -> a}}"))
+  test(typeCheck("{if true {tyfun {b} {fun {y: b} y}} {tyfun {a} {fun {x: a} x}}}"), Type("{^ b {b -> b}}"))
+  test(typeCheck("{if {= 8 8} {tyfun {a} {tyfun {b} {fun {x: a} x}}} {tyfun {b} {tyfun {a} {fun {x: b} x}}}}"), Type("{^ a {^ b {a -> a}}}"))
+  test(typeCheck("{tyfun {a} {fun {x: a} {tyfun {b} {fun {y: a} {if true x y}}}}}"), Type("{^ a {a -> {^ b {a -> a}}}}"))
+  test(typeCheck("{tyfun {a} {fun {a: {num -> num}} {fun {x: a} x}}}"), Type("{^ a {{num -> num} -> {a -> a}}}"))
+  test(typeCheck("{fun {a: {num -> num}} {tyfun {a} {fun {x: a} x}}}"), Type("{{num -> num} -> {^ a {a -> a}}}"))
+  test(typeCheck("{@ {tyfun {a} {fun {x: {^ a {a -> a}}} x}} num}"), Type("{{^ a {a -> a}} -> {^ a {a -> a}}}"))
+  test(typeCheck("{@ {tyfun {a} {fun {x: a} 5}} num}"), Type("{num -> num}"))
+  test(typeCheck("{if {= 8 10} {tyfun {a} {tyfun {b} {fun {x: a} {fun {y: b} y}}}} {tyfun {b} {tyfun {a} {fun {x: b} {fun {y: a} y}}}}}"), Type("{^ a {^ b {a -> {b -> b}}}}"))
+  test(typeCheck("{@ {tyfun {a} {fun {a: a} {{fun {x: {^ a {a -> a}}} {{@ x num} 10}} {tyfun {b} {fun {b: b} b}}}}} {num -> num}}"), Type("{{num -> num} -> num}"))
+  test(typeCheck("{@ {tyfun {a} {fun {a: a} {{fun {x: {^ a {a -> a}}} {{@ x num} 10}} {tyfun {b} {fun {b: b} b}}}}} num}"), Type("{num -> num}"))
+  test(typeCheck("{@ {tyfun {a} {fun {a: a} {{fun {x: {^ a {a -> a}}} {{@ x num} 10}} {tyfun {a} {fun {a: a} a}}}}} num}"), Type("{num -> num}"))
+  test(typeCheck("{tyfun {a} 3}"), Type("{^ a num}"))
+  test(typeCheck("{tyfun {a} {tyfun {b} 3}}"), Type("{^ a {^ b num}}"))
+  test(typeCheck("{tyfun {a} {fun {x: a} x}}"), Type("{^ a {a -> a}}"))
+  test(typeCheck("{if true {tyfun {a} {fun {x: a} x}} {tyfun {b} {fun {y: b} y}}}"), Type("{^ a {a -> a}}"))
+  test(typeCheck("{if true {tyfun {b} {fun {y: b} y}} {tyfun {a} {fun {x: a} x}}}"), Type("{^ b {b -> b}}"))
+  test(typeCheck("{if true {tyfun {a} {tyfun {b} {fun {x: a} x}}} {tyfun {b} {tyfun {a} {fun {x: b} x}}}}"), Type("{^ a {^ b {a -> a}}}"))
+  test(typeCheck("{tyfun {a} {fun {x: a} {tyfun {b} {fun {y: a} {if true x y}}}}}"), Type("{^ a {a -> {^ b {a -> a}}}}"))
+  test(typeCheck("{fun {x: {^ a a}} x}"), Type("{{^ a a} -> {^ a a}}"))
+  test(typeCheck("{@ {tyfun {a} {tyfun {b} {fun {x: {^ a {^ b a}}} x}}} num}"), Type("{^ b {{^ a {^ b a}} -> {^ a {^ b a}}}}"))
+  test(typeCheck("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), Type("num"))
+  test(typeCheck("{withtype {foo {a num} {b num}} {cases foo {a 3} {a {n} {+ n 3}} {b {n} {+ n 4}}}}"), Type("num"))
 
-
+  // interpretor
+  test(run("{{{@ {tyfun {a} {fun {f: a} f}} {num -> num}} {fun {x: num} x}} 10}"), "10")
+  test(run("{@ {tyfun {a} {fun {f: a} f}} {num -> num}}"), "function")
+  test(run("{@ {@ {tyfun {a} {tyfun {b} 3}} num} num}"), "3")
+  test(run("{tyfun {a} {fun {x: b} x}}"), "function")
+  test(run("{{fun {x: num} {{fun {f: {num -> num}} {+ {f 1} {{fun {x: num} {f 2}} 3}}} {fun {y: num} {+ x y}}}} 0}"), "3")
+  test(run("{@ {tyfun {a} {fun {x: a} x}} num}"), "function")
+  test(run("{tyfun {a} {tyfun {b} 3}}"), "3")
+  test(run("{{{@ {tyfun {a} {fun {f: a} f}} {num  -> num}} {fun {x: num} x}} 10}"), "10")
+  test(run("{@ {tyfun {a} {fun {f: a} f}} {num -> num}}"), "function")
+  test(run("{@ {@ {tyfun {a} {tyfun {b} 3}} num} num}"), "3")
+  test(run("{@ {tyfun {a} {fun {f: a} f}} {num -> num}}"), "function")
+  test(run("{{@ {if true {tyfun {a} {fun {x: a} x}} {tyfun {b} {fun {x: b} b}}} x} 30}"), "30")
+  test(run("{{fun {x: {^ a {a -> a}}} {{@ x num} 10}} {tyfun {b} {fun {y: b} y}}}"), "10")
+  test(run("{@ {tyfun {a} {fun {x: a} 5}} num}"), "function")
+  test(run("{@ {tyfun {a} {fun {x: {^ a {a -> a}}} x}} num}"), "function")
+  test(run("{{{@ {@ {tyfun {a} {tyfun {b} {fun {x: {a -> b}} x}}} num} num} {fun {x: num} {+ 5 x}}} 3}"), "8")
+  test(run("{{{@ {@ {tyfun {a} {tyfun {a} {fun {x: {a -> a}} x}}} num} num} {fun {x: num} {+ 5 x}}} 3}"), "8")
+  test(run("{@ {@ {tyfun {a} {tyfun {b} 3}} num} num}"), "3")
+  test(run("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), "10")
+  test(run("{with {f: {num -> num} {recfun {f: {num -> num} x: num} {if {= x 0} 0 {+ {f {- x 1}} x}}}} {f 10}}"), "55")
         /* failures collection
         test(typeCheck("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), Type("num"))
         */
