@@ -91,18 +91,23 @@ object Main extends Homework07 {
                 }
             }
             def type_replacer(target: Type, tenv: TypeEnv): Type={
-               // println("here i type_replacer")
-               // println("tenv.vars : "+tenv.vars)
-               // println("target: " + target)
+                println("\nhere i type_replacer")
+                println("tenv.vars : "+tenv.vars)
+                println("target: " + target)
                 target match{
-                    case IdT(x) => tenv.vars.apply(x)
+                    case IdT(x) => 
+                        tenv.vars.get(x) match{
+                            case Some(v) =>v
+                            case None => target
+                        }
                     case ArrowT(p, r) => ArrowT(type_replacer(p, tenv), type_replacer(r, tenv))
                //     case PolyT(p, pb) => PolyT(p, type_replacer(pb, tenv))
                     case _ => target
                 }
             }
             expr match{
-                case Num(n) => NumT
+                case Num(n) => 
+                    return NumT
                 case Bool(b) => BoolT
                 case Add(l, r) => 
                     mustSame(typeCheckCOREL(l, tenv), NumT)
@@ -127,7 +132,10 @@ object Main extends Homework07 {
                     val typea = typeCheckCOREL(a, tenv)
                     typef match {
                         case ArrowT(t1, t2)=>
+                            println("###here###")
+                            println("typef: " + typef)
                             mustSame(t1, typea)
+                            
                             t2
                         case _ => error(s"apply $typea to $typef")
                     }
@@ -155,8 +163,11 @@ object Main extends Homework07 {
                     validType(t, tenv)
                     typeCheckCOREL(b, tenv) match {
                         case PolyT(p, pb) => 
-                        //    println("??")
-                            type_replacer(pb, tenv.addVar(p,t))
+                            println("@@ will run type replacer @@ expr: "+expr)
+                            println("@@polyT: " + p +"@@"+pb)
+                            val a=type_replacer(pb, tenv.addVar(p,t))
+                            println("TAPP finished : "+a)
+                            a
                         case _ => error(s"TAPP temporary error message")
                 }
 
@@ -265,8 +276,6 @@ object Main extends Homework07 {
     }
     def ownTests: Unit = {
         test(typeCheck("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), Type("num"))
-
-
         /* failures collection
         test(typeCheck("{{@ {@ {tyfun {a} {tyfun {b} {fun {x: a} x}}} num} num} 10}"), Type("num"))
         */
